@@ -6,7 +6,7 @@
 
 ## 功能特点
 
-- 🎯 **每日英语练习** - 用户主动触发，按需练习
+- 🎯 **每日英语练习** - 用户主动触发，主题可自定义或让 bot 询问
 - 🗣 **中英翻译** - 用户说中文，AI 翻译成自然的口语英文
 - 💬 **回复示例** - 提供 3 个可复用的回复选项
 - 📚 **单词讲解** - 附带中文释义
@@ -37,12 +37,12 @@ english-coach-telegram/
 
 ```json
 {
-    "openrouter": {
-        "apiKey": "YOUR_OPENROUTER_API_KEY",
-        "baseUrl": "https://openrouter.ai/api/v1",
-        "model": "openai/gpt-audio-mini",
+    "provider": "openai",
+    "openai": {
+        "apiKey": "YOUR_OPENAI_API_KEY",
+        "model": "tts-1",
         "voice": "alloy",
-        "format": "pcm16",
+        "response_format": "wav",
         "proxyUrl": "http://your-proxy:port"
     },
     "telegram": {
@@ -66,7 +66,9 @@ english-coach-telegram/
 
 ### 2. 配置说明
 
-- **语音 API**：在 `openrouter` 或 `openai` 等对应区块填入 Key
+- **provider**：`openai`（默认，纯 TTS 朗读）或 `openrouter`（对话式 audio 模型）
+- **openai**：使用 OpenAI 官方 TTS API，直接朗读输入文本，无“回复”行为。需填入 `apiKey`，模型可选 `tts-1`、`tts-1-hd`
+- **openrouter**：使用 OpenRouter 的 audio 模型（如 gpt-audio-mini），需在对应区块填入 Key
 - **Telegram**：`botToken`、`chatId` 等请参考 [nanobot](https://github.com/HKUDS/nanobot) 与 Telegram 的配置文档，与 nanobot 主配置保持一致
 
 ### 3. 运行方式
@@ -133,7 +135,7 @@ This repo provides Skill plugins for [nanobot](https://github.com/HKUDS/nanobot)
 
 ### Features
 
-- 🎯 **On-demand practice** - User initiates, practice when you want
+- 🎯 **On-demand practice** - User initiates, topic is customizable or asked by bot
 - 🗣 **Chinese→English translation** - Speak Chinese, get natural spoken English
 - 💬 **Example responses** - 3 reusable reply options
 - 📚 **Vocabulary notes** - Chinese definitions included

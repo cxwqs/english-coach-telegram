@@ -1,54 +1,46 @@
 ---
 name: english-pronunciation-audio
-description: Generate Telegram pronunciation audio files for English practice replies using OpenRouter audio output and the Telegram Bot API. Use together with english-daily-coach when the user is practicing spoken English, when the assistant reply contains short English lines that should be heard aloud, or when the user asks how an English sentence is pronounced. Extract only the spoken English lines, skip Chinese guidance such as lines prefixed with "提示:", and send at most one audio file per reply.
+description: Generate TTS audio for English practice replies and send via Telegram. Use together with english-daily-coach. Extracts spoken English lines, skips Chinese, and sends one audio file per reply. When user asks "怎么读", generate audio for the English sentence — do NOT explain pronunciation in text.
 ---
 
 # English Pronunciation Audio
 
-## Operating Mode
+## CRITICAL Rules
 
-- Use this skill together with `english-daily-coach` or whenever the user wants to hear how an English sentence is pronounced.
-- Generate at most one audio file per reply.
-- Only read the English lines that should be spoken aloud.
-- Skip Chinese guidance lines, especially lines prefixed with `提示:`.
-- Skip error examples such as `You said:`. Only read corrected lines such as `More natural:` and `Reusable phrase:`.
-- If the user ends the session, skip audio for the final closing reply.
+1. This skill generates AUDIO files only. NEVER output text-based pronunciation guides (e.g. "vuh-LOR-unt", IPA symbols).
+2. **When user asks "X怎么读"** (how to pronounce the sentence they sent): Pass ONLY the exact sentence X the user gave you. Example: user says "What would you like to order for lunch today?怎么读" → exec with `--text "What would you like to order for lunch today"`. Do NOT pass your reply or any extra text.
+3. **When sending coaching reply**: Pass the full draft (你说/➡️/💬/📚/🎯) so the script extracts translation + examples + question.
+4. Generate at most one audio file per reply.
+5. Skip Chinese lines (lines starting with `提示:`, `你说:`, `📚`, `💬`).
+6. Skip `You said:` lines. Only read `More natural:` and `Reusable phrase:` lines.
+7. Skip vocabulary definitions (`• word — 释义`) and phonetic lines (IPA, "pronounced", "vuh-LOR-unt").
+8. If the user ends the session, skip audio for the final reply.
 
 ## Supported Reply Shapes
 
-- This skill assumes `english-daily-coach` uses one fixed template per reply.
-- Supported labels are:
-  - `Translation:`
-  - `You can say:`
-  - `Now you try:`
-  - `More natural:`
-  - `Reusable phrase:`
-- `You can say:` is a container label only and is not spoken.
-- Bullet lines under `You can say:` are spoken.
-- `提示:` and `You said:` are ignored.
+Spoken content is extracted from:
+
+- `➡️` line (translation)
+- `①②③` lines (example sentences)
+- Line after `🎯 我会这样继续问你：` (follow-up question)
+- `Translation:` / `You can say:` / `Now you try:` / `More natural:` / `Reusable phrase:` (legacy labels)
 
 ## Script
 
 - Use `scripts/tts_openrouter.py`.
-- Pass the full draft reply text with `--text`. The script extracts the spoken English automatically.
-- The script reads configuration from `assets/tts-config.json`, calls OpenRouter TTS in streaming mode, wraps the returned `pcm16` audio into a temporary `.wav`, uploads it with Telegram `sendAudio`, and deletes the temporary file.
-- If the script returns `no_spoken_text` or `too_long`, send only the normal text reply.
-- If the script fails, do not block the normal reply and do not retry more than once.
-
-Example:
-
-```bash
-python3 scripts/tts_openrouter.py --text "Translation: I don't know how to say it.\nYou can say:\n- Let me think about it.\n- That's a good question.\nNow you try: What do you want to say first?\n提示: 先选一句。"
-```
+- Pass the full draft reply text with `--text`. The script extracts spoken English automatically.
+- Config: `assets/tts-config.json`.
+- If script returns `no_spoken_text` or `too_long`, send text reply only.
+- If script fails, do not block the text reply. Retry at most once.
 
 ## Reply Shaping
 
-- Keep each spoken reply concise.
-- Keep the extracted English under 300 characters total.
-- Keep Chinese hints on separate lines with the `提示:` prefix.
-- Use only one template per reply so extraction stays deterministic.
+- Keep extracted English under 300 characters total.
+- Keep Chinese on separate `提示:` lines.
+- One template per reply for deterministic extraction.
 
 ## Debugging
 
-- Use `--extract-only` to inspect which English lines will be spoken.
-- Use `--dry-run` to skip Telegram upload after audio generation if you only need to verify the TTS call.
+- `--extract-only`: inspect extracted English as JSON.
+- `--dry-run`: generate audio but skip Telegram upload.
+- To verify what audio will be sent: `python3 scripts/tts_openrouter.py --text "your text" --extract-only`

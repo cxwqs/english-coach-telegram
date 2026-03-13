@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate pronunciation audio with OpenRouter and send it to Telegram."""
+"""Generate pronunciation audio with OpenAI TTS or OpenRouter and send it to Telegram."""
 
 from __future__ import annotations
 
@@ -24,7 +24,8 @@ STRIP_LABELS = (
     "now you try:",
     "you can say:",
 )
-SKIP_LABELS = ("提示:", "you said:")
+SKIP_LABELS = ("提示:", "you said:", "你说:", "📚", "💬")  # 你说=restate; 📚/💬=section headers
+CIRCLED_NUMS = "①②③④⑤⑥⑦⑧⑨⑩"
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,9 +69,37 @@ def load_config(config_path: str) -> dict:
 def normalize_line(line: str) -> str:
     line = line.strip()
     line = re.sub(r"^[*\-•]\s+", "", line)
-    line = re.sub(r"^\d+\.\s+", "", line)
+    line = re.sub(r"^\d+[\.\)]\s+", "", line)
+    if line and line[0] in CIRCLED_NUMS:
+        line = line[1:].strip()
+    if line.startswith("➡️"):
+        line = line[1:].strip()
     line = line.replace("`", "").replace("**", "")
     return " ".join(line.split())
+
+
+def is_vocab_definition_line(line: str) -> bool:
+    """Skip lines like 'word — 中文释义' (vocabulary section)."""
+    if " — " not in line:
+        return False
+    after_dash = line.split(" — ", 1)[-1].strip()
+    cjk = len(re.findall(r"[\u4e00-\u9fff]", after_dash))
+    return cjk >= 1 and len(after_dash) <= 20
+
+
+def is_phonetic_line(line: str) -> bool:
+    """Skip lines that are pronunciation guides, not sentences to read aloud."""
+    lowered = line.lower()
+    # IPA transcription: /.../ or [...]
+    if re.search(r"[/\[\]][\wəɑɔɪʊɛæʌˈˌː]+[/\[\]]", line):
+        return True
+    # "pronounced", "sounds like", "read as"
+    if "pronounced" in lowered or "sounds like" in lowered or "read as" in lowered:
+        return True
+    # "vuh-LOR-unt" style respelling
+    if re.search(r"\b[a-z]+-[A-Z][A-Za-z]+-[a-z]+\b", line):
+        return True
+    return False
 
 
 def looks_like_english(text: str) -> bool:
@@ -97,6 +126,10 @@ def extract_spoken_text(reply_text: str) -> str:
             continue
         lowered = line.lower()
         if lowered.startswith(SKIP_LABELS):
+            continue
+        if is_vocab_definition_line(line):
+            continue
+        if is_phonetic_line(line):
             continue
         line = strip_supported_label(line)
         if not line:
@@ -129,6 +162,41 @@ def join_url(base: str, path: str) -> str:
     return base.rstrip("/") + "/" + path.lstrip("/")
 
 
+def call_openai_tts(text: str, config: dict) -> tuple[bytes, str]:
+    """Use OpenAI /v1/audio/speech API. Returns (wav_bytes, "openai"). Pure TTS, no chat reply."""
+    openai_cfg = config["openai"]
+    opener = build_opener(openai_cfg.get("proxyUrl"))
+    payload = {
+        "model": openai_cfg.get("model", "tts-1"),
+        "input": text,
+        "voice": openai_cfg.get("voice", "alloy"),
+        "response_format": openai_cfg.get("response_format", "wav"),
+    }
+    base_url = openai_cfg.get("baseUrl", "https://api.openai.com/v1").rstrip("/")
+    request = urllib.request.Request(
+        f"{base_url}/audio/speech",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={
+            "Authorization": f"Bearer {openai_cfg['apiKey']}",
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+    timeout = int(config["pronunciation"].get("timeoutMs", 30000)) / 1000.0
+    try:
+        with opener.open(request, timeout=timeout) as response:
+            audio_bytes = response.read()
+    except urllib.error.HTTPError as exc:
+        body = exc.read().decode("utf-8", errors="replace")
+        raise RuntimeError(f"OpenAI TTS HTTP {exc.code}: {body}") from exc
+    except urllib.error.URLError as exc:
+        raise RuntimeError(f"OpenAI TTS network error: {exc}") from exc
+
+    if not audio_bytes:
+        raise RuntimeError("OpenAI TTS returned empty audio.")
+    return audio_bytes, "openai"
+
+
 def call_openrouter_tts(text: str, config: dict) -> tuple[bytes, list[dict]]:
     openrouter_cfg = config["openrouter"]
     pronunciation_cfg = config["pronunciation"]
@@ -145,10 +213,9 @@ def call_openrouter_tts(text: str, config: dict) -> tuple[bytes, list[dict]]:
             {
                 "role": "system",
                 "content": (
-                    "Read the provided English exactly. "
-                    "Use clear General American pronunciation for an English learner. "
-                    "Speak at a natural, moderate pace. "
-                    "Do not translate or add extra words."
+                    "You are a text-to-speech engine. Your ONLY job is to read aloud the exact text provided. "
+                    "Do NOT reply, explain, greet, or add any words. Do NOT say 'Sure' or 'Here it is' or anything before/after. "
+                    "Just speak the given text verbatim. Use clear General American pronunciation at a natural pace. No translation."
                 ),
             },
             {
@@ -224,15 +291,19 @@ def find_audio_data(payload: object) -> str | None:
     return None
 
 
-def write_wav_file(audio_bytes: bytes, config: dict) -> Path:
-    pronunciation_cfg = config["pronunciation"]
+def write_wav_file(audio_bytes: bytes, config: dict, is_complete_wav: bool = False) -> Path:
+    """Write audio to temp WAV file. If is_complete_wav, bytes are already a WAV file."""
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_file:
         tmp_path = Path(tmp_file.name)
-    with wave.open(str(tmp_path), "wb") as wav_file:
-        wav_file.setnchannels(int(pronunciation_cfg.get("channels", 1)))
-        wav_file.setsampwidth(int(pronunciation_cfg.get("sampleWidthBytes", 2)))
-        wav_file.setframerate(int(pronunciation_cfg.get("sampleRate", 24000)))
-        wav_file.writeframes(audio_bytes)
+    if is_complete_wav:
+        tmp_path.write_bytes(audio_bytes)
+    else:
+        pronunciation_cfg = config["pronunciation"]
+        with wave.open(str(tmp_path), "wb") as wav_file:
+            wav_file.setnchannels(int(pronunciation_cfg.get("channels", 1)))
+            wav_file.setsampwidth(int(pronunciation_cfg.get("sampleWidthBytes", 2)))
+            wav_file.setframerate(int(pronunciation_cfg.get("sampleRate", 24000)))
+            wav_file.writeframes(audio_bytes)
     return tmp_path
 
 
@@ -337,8 +408,20 @@ def main() -> int:
         )
         return 0
 
-    audio_bytes, chunks = call_openrouter_tts(spoken_text, config)
-    tmp_path = write_wav_file(audio_bytes, config)
+    provider = config.get("provider", "openai").lower()
+    if provider == "openai":
+        if "openai" not in config:
+            raise RuntimeError(
+                "provider is 'openai' but 'openai' section is missing in tts-config.json. "
+                "Add openai.apiKey and see tts-config.example.json."
+            )
+        audio_bytes, _ = call_openai_tts(spoken_text, config)
+        tmp_path = write_wav_file(audio_bytes, config, is_complete_wav=True)
+        extra_info: dict = {"provider": "openai"}
+    else:
+        audio_bytes, chunks = call_openrouter_tts(spoken_text, config)
+        tmp_path = write_wav_file(audio_bytes, config, is_complete_wav=False)
+        extra_info = {"chunks": len(chunks), "provider": "openrouter"}
 
     try:
         if args.dry_run:
@@ -349,7 +432,7 @@ def main() -> int:
                         "chars": char_count,
                         "spokenText": spoken_text,
                         "file": str(tmp_path),
-                        "chunks": len(chunks),
+                        **extra_info,
                     },
                     ensure_ascii=False,
                     indent=2,
@@ -365,7 +448,7 @@ def main() -> int:
                     "chars": char_count,
                     "spokenText": spoken_text,
                     "messageId": telegram_result.get("result", {}).get("message_id"),
-                    "chunks": len(chunks),
+                    **extra_info,
                 },
                 ensure_ascii=False,
                 indent=2,
