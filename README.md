@@ -64,10 +64,10 @@ english-coach-telegram/
 }
 ```
 
-### 2. 获取 API Key
+### 2. 配置说明
 
-- **OpenRouter**: 访问 [openrouter.ai](https://openrouter.ai) 注册并获取 API Key
-- **Telegram Bot**: 通过 @BotFather 创建机器人并获取 Token
+- **语音 API**：在 `openrouter` 或 `openai` 等对应区块填入 Key
+- **Telegram**：`botToken`、`chatId` 等请参考 [nanobot](https://github.com/HKUDS/nanobot) 与 Telegram 的配置文档，与 nanobot 主配置保持一致
 
 ### 3. 运行方式
 
@@ -142,8 +142,8 @@ This repo provides Skill plugins for [nanobot](https://github.com/HKUDS/nanobot)
 
 ### Quick Start
 
-1. **Config**: Copy `english-pronunciation-audio/assets/tts-config.example.json` to `tts-config.json` and fill in your API keys.
-2. **API Keys**: [OpenRouter](https://openrouter.ai) for TTS, [@BotFather](https://t.me/BotFather) for Telegram Bot Token.
+1. **Config**: Copy `tts-config.example.json` to `tts-config.json` and fill in TTS API keys.
+2. **Telegram**: For `botToken`, `chatId`, etc., refer to [nanobot](https://github.com/HKUDS/nanobot) and Telegram configuration docs.
 3. **Test**: `python3 english-pronunciation-audio/scripts/tts_openrouter.py --text "Hello, how are you?"`
 
 ### Dependencies
