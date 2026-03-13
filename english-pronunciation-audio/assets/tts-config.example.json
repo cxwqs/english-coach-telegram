@@ -1,0 +1,26 @@
+{
+    "openrouter": {
+        "apiKey": "YOUR_OPENROUTER_API_KEY",
+        "baseUrl": "https://openrouter.ai/api/v1",
+        "model": "openai/gpt-audio-mini",
+        "voice": "alloy",
+        "format": "pcm16",
+        "proxyUrl": "http://your-proxy:port"
+    },
+    "telegram": {
+        "botToken": "YOUR_TELEGRAM_BOT_TOKEN",
+        "chatId": "YOUR_CHAT_ID",
+        "sendMethod": "sendAudio",
+        "proxyUrl": "http://your-proxy:port"
+    },
+    "pronunciation": {
+        "enabled": true,
+        "accent": "general-american",
+        "maxCharsPerReply": 300,
+        "autoForSkill": "english-daily-coach",
+        "timeoutMs": 30000,
+        "sampleRate": 24000,
+        "channels": 1,
+        "sampleWidthBytes": 2
+    }
+}
