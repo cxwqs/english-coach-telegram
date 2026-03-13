@@ -19,9 +19,10 @@
 
 ```
 english-coach-telegram/
+├── AGENTS.md                     # Agent 指令（追加到工作区已有 AGENTS.md）
 ├── english-daily-coach/          # 主练习技能
 │   └── SKILL.md                  # 技能定义
-├── english-pronunciation-audio/  # 发音音频技能
+├── english-pronunciation-audio/ # 发音音频技能
 │   ├── SKILL.md                  # 技能定义
 │   ├── assets/
 │   │   ├── tts-config.example.json  # 配置模板
@@ -70,8 +71,10 @@ english-coach-telegram/
 
 - **provider**：`openai`（默认，纯 TTS 朗读）或 `openrouter`（对话式 audio 模型）
 - **openai**：使用 OpenAI 官方 TTS API，直接朗读输入文本，无“回复”行为。需填入 `apiKey`，模型可选 `tts-1`、`tts-1-hd`
-- **openrouter**：使用 OpenRouter 的 audio 模型（如 gpt-audio-mini），需在对应区块填入 Key
+- **openrouter**：使用 OpenRouter 的 audio 模型（如 gpt-audio-mini），需在对应区块填入 Key。**注意**：OpenRouter 的 audio 模型是对话式，会“回复”你的话（如解释、打招呼等），而非单纯朗读你发的句子，若需纯朗读建议用 `openai`
 - **Telegram**：`botToken`、`chatId` 等请参考 [nanobot](https://github.com/HKUDS/nanobot) 与 Telegram 的配置文档，与 nanobot 主配置保持一致
+
+- **AGENTS.md**：本仓库的 `AGENTS.md` 需**追加**到 nanobot 工作区根目录已有的 `AGENTS.md` 中，与用户原有指令合并使用，不要覆盖
 
 ### 3. 运行方式
 
@@ -141,12 +144,12 @@ This repo provides Skill plugins for [nanobot](https://github.com/HKUDS/nanobot)
 - 🗣 **Chinese→English translation** - Speak Chinese, get natural spoken English
 - 💬 **Example responses** - 3 reusable reply options
 - 📚 **Vocabulary notes** - Chinese definitions included
-- 🎤 **Pronunciation audio** - Auto-generated TTS via OpenRouter
+- 🎤 **Pronunciation audio** - Auto-generated TTS (OpenAI default, OpenRouter optional)
 - 📝 **Error correction** - High-value corrections every 3–5 turns
 
 ### Quick Start
 
-1. **Config**: Copy `tts-config.example.json` to `tts-config.json` and fill in TTS API keys.
+1. **Config**: Copy `tts-config.example.json` to `tts-config.json` and fill in TTS API keys. Use `provider: "openai"` (default) for literal reading; OpenRouter audio models tend to *reply* to your text rather than read it aloud.
 2. **Telegram**: For `botToken`, `chatId`, etc., refer to [nanobot](https://github.com/HKUDS/nanobot) and Telegram configuration docs.
 3. **Test**: `python3 english-pronunciation-audio/scripts/tts_openrouter.py --text "Hello, how are you?"`
 
