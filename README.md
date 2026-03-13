@@ -4,6 +4,8 @@
 
 本仓库为 [nanobot](https://github.com/HKUDS/nanobot) 的 Skill 插件，可将 `english-daily-coach` 和 `english-pronunciation-audio` 放入 nanobot 的 skills 目录使用。
 
+![示例：英语练习与发音朗读](image.png)
+
 ## 功能特点
 
 - 🎯 **每日英语练习** - 用户主动触发，主题可自定义或让 bot 询问
